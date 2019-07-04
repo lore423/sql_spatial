@@ -1,0 +1,1 @@
+SELECT nom, to_migrate, comments FROM metadata.data_migration WHERE nom = 'sismographes_cea'
