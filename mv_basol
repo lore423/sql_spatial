@@ -1,0 +1,29 @@
+CREATE MATERIALIZED VIEW contraintes_pv.mv_basol
+TABLESPACE pg_default
+AS
+ SELECT row_number() OVER () AS ogc_fid,
+ foo.code_insee,
+ foo.commune,
+ foo.lieu_dit,
+ foo.adresse,
+ foo.nom_usuel_site,
+ foo.code_activite_icpe,
+ foo.site_num,
+ foo.num_basol,
+ foo.wkb_geometry
+ FROM
+(
+ SELECT
+	site_num,
+	num_basol,
+	lambert93_x,
+	lambert93_y,
+	adresse,
+	lieu_dit,
+	commune,
+	code_insee,
+	nom_usuel_site,
+	code_activite_icpe,
+	ST_SetSRID(ST_MakePoint(lambert93_x, lambert93_y),2154) AS wkb_geometry
+   FROM contraintes_pv.basol ) AS foo
+ WHERE wkb_geometry IS NOT NULL
