@@ -1,0 +1,23 @@
+CREATE TABLE traitements.code_group_1_cluster_10m AS 
+
+WITH cluster_geom AS
+(
+SELECT
+		
+        unnest(st_clusterwithin(wkb_geometry, 10::double precision)) AS grp_geom
+        FROM traitements.code_group_19
+		limit 100
+),
+multi_geom as
+(
+SELECT 
+	row_number()over() AS ogc_fid,
+	st_multi(st_unaryunion(st_buffer(grp_geom, 0::double precision))) AS wkb_geometry
+	FROM cluster_geom
+)
+SELECT
+	row_number()over() AS ogc_fid,
+	wkb_geometry::geometry(MultiPolygon,2154),
+	ST_Area(wkb_geometry) AS surf_m2,
+	ST_Area(wkb_geometry)/10000 AS surfa_ha
+	FROM multi_geom
