@@ -1,0 +1,62 @@
+
+0.couches des contraintes redhibitoires******************************************************
+
+CREATE TABLE traitements.busdev_parcelles_foncier_totalenergies_info_redhibitoires_intersect AS
+SELECT * FROM (SELECT a.ogc_fid, a.wkb_geometry, fid, id, commune, prefixe, section, numero, contenance, arpente, created, updated, "département (champ géographique)", 
+					  "code commune (champ géographique)", "indice de répétition (adresse parcelle)", "code voie majic (adresse parcelle)", "code voie rivoli (adresse parcelle)", 
+					  "nature voie (adresse parcelle)", "nom voie (adresse parcelle)", "suf (evaluation suf)", "nature culture (evaluation suf)", "code droit (propriétaire(s) parcelle)", 
+					  "n° majic (propriétaire(s) parcelle)", "n° siren (propriétaire(s) parcelle)", "groupe personne (propriétaire(s) parcelle)", "forme juridique (propriétaire(s) parcelle)", 
+					  "forme juridique abrégée (propriétaire(s) parcelle)", "dénomination (propriétaire(s) parcelle)", _mean, hubname, hubdist, area_m2, area_ha
+FROM traitements.busdev_parcelles_foncier_totalenergies_info_redhibitoires a, traitements.busdev_gc_contraintes_redhibitoires b
+WHERE st_intersects(a.wkb_geometry, b.wkb_geometry)
+AND (st_area(st_intersection(a.wkb_geometry, b.wkb_geometry)) / st_area(a.wkb_geometry)) > 0.1::double precision
+GROUP by a.ogc_fid, a.wkb_geometry, fid, a.id, commune, prefixe, section, numero, contenance, arpente, created, updated, "département (champ géographique)", "code commune (champ géographique)", "indice de répétition (adresse parcelle)", "code voie majic (adresse parcelle)", "code voie rivoli (adresse parcelle)", "nature voie (adresse parcelle)", "nom voie (adresse parcelle)", "suf (evaluation suf)", "nature culture (evaluation suf)", "code droit (propriétaire(s) parcelle)", "n° majic (propriétaire(s) parcelle)", "n° siren (propriétaire(s) parcelle)", "groupe personne (propriétaire(s) parcelle)", "forme juridique (propriétaire(s) parcelle)", "forme juridique abrégée (propriétaire(s) parcelle)", "dénomination (propriétaire(s) parcelle)", _mean, hubname, hubdist, area_m2, area_ha
+)as e;
+
+***********************************************************************************************
+1. union couche de contraintes
+
+**************UNION*******
+CREATE TABLE traitements.busdev_gc_contraintes_fortes_union AS
+SELECT ST_Union(wkb_geometry) AS wkb_geometry
+FROM traitements.busdev_gc_contraintes_fortes
+
+**************INDEX********
+CREATE INDEX sidx_busdev_gc_contraintes_fortes_union__fr_fx
+ON traitements.busdev_gc_contraintes_fortes_union   USING gist
+(wkb_geometry)
+TABLESPACE pg_default;
+
+
+
+***********************************************************************************************
+2. surface et %intersection
+
+
+CREATE TABLE traitements.busdev_gc_contraintes_redhibitoires_union_stats AS
+WITH intersection AS 
+(
+SELECT
+a.ogc_fid, a.wkb_geometry, fid, id, commune, prefixe, section, numero, contenance, arpente, created, updated, departeme, "code commu", "indice de", "code voie", "code voi_1", "nature voi", "nom voie", suf, "nature cul", "code droit", majic, siren, "groupe per", "forme juri", "forme ju_1", denominat, dossier, layer, path, _mean, hubname, hubdist, area_m2, area_ha,
+st_area(st_intersection(a.wkb_geometry, b.wkb_geometry)) surf_inter,
+(st_area(st_intersection(a.wkb_geometry, b.wkb_geometry)) / st_area(a.wkb_geometry))*100  pct_inter
+FROM traitements.busdev_parcelles_grands_comptes_info_redhibitoires as a, traitements.busdev_gc_contraintes_redhibitoires_union AS b
+WHERE st_intersects(a.wkb_geometry, b.wkb_geometry) 
+        )
+SELECT 
+fid, id, commune, prefixe, section, numero, contenance, arpente, created, updated, departeme, "code commu", "indice de", "code voie", "code voi_1", "nature voi", "nom voie", suf, "nature cul", "code droit", majic, siren, "groupe per", "forme juri", "forme ju_1", denominat, dossier, layer, path, _mean, hubname, hubdist, area_m2, area_ha,
+    surf_inter,
+	pct_inter,
+	st_multi(st_union((wkb_geometry)))::geometry(MultiPolygon,2154) AS wkb_geometry
+   FROM intersection
+   group by fid, intersection.id, commune, prefixe, section, numero, contenance, arpente, created, updated, departeme, "code commu", "indice de", "code voie", "code voi_1", "nature voi", "nom voie", suf, "nature cul", "code droit", majic, siren, "groupe per", "forme juri", "forme ju_1", denominat, dossier, layer, path, _mean, hubname, hubdist, area_m2, area_ha, surf_inter, pct_inter
+ 
+***************************************************************************************************
+3. CLUSTER
+
+CREATE TABLE traitements.busdev_gc_contraintes_redhibitoires_union_stats_cluster_500m AS
+SELECT 
+ST_ClusterDBSCAN(wkb_geometry, eps := 500, minpoints := 1) over () as cluster_id, 
+id, commune, prefixe, section, numero, contenance, arpente, created, updated, departeme, "code commu", "indice de", "code voie", "code voi_1", "nature voi", "nom voie", suf, "nature cul", "code droit", majic, siren, "groupe per", "forme juri", "forme ju_1", denominat, dossier, layer, path, _mean, hubname, hubdist, area_m2, area_ha, surf_inter, pct_inter, wkb_geometry
+FROM traitements.busdev_gc_contraintes_redhibitoires_union_stats
+;
